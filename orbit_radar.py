@@ -10,6 +10,7 @@ from skyfield.api import Topos, load
 import get_list as g
 import tkinter.ttk as ttk  # Ergänzen für Combobox
 from datetime import datetime
+import time_widget as tw
 
 # Globale Variablen für mehrere Satelliten
 tracking = False
@@ -59,7 +60,6 @@ def track_satellite(satellite_id):
     try:
         # Statt der API die lokale TLE-Datei verwenden
         satellites_api = load.tle_file('satellite_data.txt')  # Lade TLE-Daten aus der richtigen lokalen Datei
-        #print(f"Geladene Satelliten: {[sat.name for sat in satellites_api]}")
 
         # Suche nach dem Satelliten mit dem entsprechenden Namen
         satellite = next((sat for sat in satellites_api if satellite_id in sat.name), None)
@@ -99,7 +99,6 @@ def track_satellite(satellite_id):
         print(f"Fehler beim Tracken des Satelliten {satellite_id}: {e}")
   
 
-
 # Start-Button für einen Satelliten
 def start_tracking():
     satellite_id = satellite_var.get()
@@ -123,6 +122,7 @@ def stop_tracking():
     if satellite_id in satellites:
         satellites[satellite_id]["tracking"] = False
         satellites[satellite_id]["text"].remove()
+
         satellites_api = load.tle_file('satellite_data.txt')
         satellite = next((sat for sat in satellites_api if satellite_id in sat.name), None)
         ts = load.timescale()
@@ -134,34 +134,62 @@ def stop_tracking():
         
         now = datetime.now()
 
-        satellites[satellite_id]["text"] = ax.text(longitude, latitude, satellite_id + " :" + now.strftime("%Y-%m-%d %H:%M:%S"), transform=ccrs.PlateCarree(), fontsize=6, color='black')
-        
-        # Update prev_satellites to store the satellite's data in a dictionary
-        prev_satellites[satellite_id] = {
-            "id": satellite_id,
+        # Neuen Text hinzufügen (mit aktuellem Timestamp)
+        satellites[satellite_id]["text"] = ax.text(
+            longitude, latitude, 
+            satellite_id + " :" + now.strftime("%Y-%m-%d %H:%M:%S"),
+            transform=ccrs.PlateCarree(), fontsize=6, color='black'
+        )
+
+        # NEU: Liste im prev_satellites aufbauen
+        if satellite_id not in prev_satellites:
+            prev_satellites[satellite_id] = []
+
+        prev_satellites[satellite_id].append({
             "text": satellites[satellite_id]["text"],
             "point": satellites[satellite_id]["point"],
             "path": satellites[satellite_id]["path"],
-        }
+        })
+
         fig.canvas.draw()
 
 def reset_tracking_single():
     global prev_satellites
     satellite_id = satellite_var.get()
 
-    # Remove the satellite from the satellites dictionary
+    # Aktive Grafikobjekte vom Satelliten entfernen
     if satellite_id in satellites:
-        satellites[satellite_id]["point"].remove()
-        satellites[satellite_id]["path"].remove()
-        satellites[satellite_id]["text"].remove()
+        try:
+            satellites[satellite_id]["point"].remove()
+        except Exception:
+            pass
+        try:
+            satellites[satellite_id]["path"].remove()
+        except Exception:
+            pass
+        try:
+            satellites[satellite_id]["text"].remove()
+        except Exception:
+            pass
+        
         del satellites[satellite_id]
 
-    # Reset the satellite in prev_satellites
-    for satellite_id in prev_satellites:
-        satellite_data = prev_satellites[satellite_id]
-        satellite_data["point"].remove()
-        satellite_data["path"].remove()
-        satellite_data["text"].remove()
+    # Alte gespeicherte Grafikobjekte vom Satelliten entfernen
+    if satellite_id in prev_satellites:
+        for satellite_data in prev_satellites[satellite_id]:
+            try:
+                satellite_data["point"].remove()
+            except Exception:
+                pass
+            try:
+                satellite_data["path"].remove()
+            except Exception:
+                pass
+            try:
+                satellite_data["text"].remove()
+            except Exception:
+                pass
+
         del prev_satellites[satellite_id]
 
     fig.canvas.draw()
@@ -169,14 +197,39 @@ def reset_tracking_single():
 
 # Reset-Button für alle Satelliten
 def reset_tracking_all():
-    global satellites
+    global satellites, prev_satellites
+    # Lösche alle Satelliten aus "satellites"
     for satellite_id, elements in satellites.items():
-        # Grafik-Elemente entfernen
+        # Entferne die Graphenobjekte
         elements["point"].remove()
         elements["path"].remove()
         elements["text"].remove()
+
+    # Setze die satellites Dictionary zurück
     satellites = {}
+
+    # Lösche alle Satelliten aus "prev_satellites"
+    for satellite_id, satellite_data_list in prev_satellites.items():
+        for satellite_data in satellite_data_list:
+            try:
+                satellite_data["point"].remove()
+            except Exception:
+                pass
+            try:
+                satellite_data["path"].remove()
+            except Exception:
+                pass
+            try:
+                satellite_data["text"].remove()
+            except Exception:
+                pass
+
+    # Setze die prev_satellites Dictionary zurück
+    prev_satellites = {}
+
+    # Zeichne das Bild neu, um alles zu leeren
     fig.canvas.draw()
+
 
 # Fenster für die Buttons und das Dropdown-Menü erstellen
 root = tk.Tk()
@@ -189,7 +242,7 @@ root.configure(bg='lightgray')
 satellite_var = tk.StringVar(root)
 satellite_var.set(satellite_list[0])
 
-satellite_menu = ttk.Combobox(root, textvariable=satellite_var, values=satellite_list, state = "readonly")
+satellite_menu = ttk.Combobox(root, textvariable=satellite_var, values=satellite_list, state="readonly")
 satellite_menu.pack(fill='both', expand=True)
 satellite_menu.current(0)  # Erstes Element vorauswählen
 
@@ -204,7 +257,6 @@ stop_button.pack(fill='both', expand=True)
 # Reset-Button für alle Satelliten
 reset_button_single = tk.Button(root, text="Reset This", command=reset_tracking_single)
 reset_button_single.pack(fill='both', expand=True)
-
 
 # Reset-Button für alle Satelliten
 reset_button_all = tk.Button(root, text="Reset All", command=reset_tracking_all)
