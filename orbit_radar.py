@@ -10,7 +10,7 @@ from skyfield.api import Topos, load
 import get_list as g
 import tkinter.ttk as ttk  # Ergänzen für Combobox
 from datetime import datetime
-import time_widget as tw
+from tkcalendar import DateEntry
 
 # Globale Variablen für mehrere Satelliten
 tracking = False
@@ -46,9 +46,8 @@ def fetch_tle_data():
             return []
 
 # Berechnung der Position eines Satelliten mit Skyfield
-def track_satellite(satellite_id):
+def track_satellite(satellite_id, timescale, update):
     global satellites
-    ts = load.timescale()
 
     # TLE-Daten lokal abrufen
     satellite_tle = fetch_tle_data()
@@ -72,8 +71,10 @@ def track_satellite(satellite_id):
 
         while satellites[satellite_id]["tracking"]:
             try:
-                t = ts.now()
-                satellite_position = satellite.at(t)
+                if update:
+                    ts = load.timescale()
+                    timescale = ts.now()
+                satellite_position = satellite.at(timescale)
                 subpoint = satellite_position.subpoint()
                 longitude = subpoint.longitude.degrees
                 latitude = subpoint.latitude.degrees
@@ -98,7 +99,6 @@ def track_satellite(satellite_id):
     except Exception as e:
         print(f"Fehler beim Tracken des Satelliten {satellite_id}: {e}")
   
-
 # Start-Button für einen Satelliten
 def start_tracking():
     satellite_id = satellite_var.get()
@@ -112,7 +112,10 @@ def start_tracking():
             "path": ax.plot([], [], color='yellow', linewidth=1, transform=ccrs.Geodetic())[0],
             "text": ax.text(0, 0, satellite_id, transform=ccrs.PlateCarree(), fontsize=10, color='black')  # Add text for satellite name
         }
-        Thread(target=track_satellite, args=(satellite_id,), daemon=True).start()
+        ts = load.timescale()
+        t = ts.now()
+        Thread(target=track_satellite, args=(satellite_id, t, True), daemon=True).start()
+
 
 # Stop-Button für einen Satelliten
 def stop_tracking():
@@ -141,7 +144,6 @@ def stop_tracking():
             transform=ccrs.PlateCarree(), fontsize=6, color='black'
         )
 
-        # NEU: Liste im prev_satellites aufbauen
         if satellite_id not in prev_satellites:
             prev_satellites[satellite_id] = []
 
@@ -194,7 +196,6 @@ def reset_tracking_single():
 
     fig.canvas.draw()
 
-
 # Reset-Button für alle Satelliten
 def reset_tracking_all():
     global satellites, prev_satellites
@@ -230,6 +231,50 @@ def reset_tracking_all():
     # Zeichne das Bild neu, um alles zu leeren
     fig.canvas.draw()
 
+def calculate():
+    # Datum und Uhrzeit aus den Widgets auslesen
+    date = date_entry.get()  # Datum im Format 'yyyy-mm-dd'
+    hour = hour_spinbox.get()  # Stunde als String
+    minute = minute_spinbox.get()  # Minute als String
+    
+    # Das Datum in ein datetime-Objekt umwandeln
+    date_str = f"{date} {hour}:{minute}:00"
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+    
+    # Skyfield Zeitformat umwandeln
+    ts = load.timescale()
+    skyfield_time = ts.utc(date_obj.year, date_obj.month, date_obj.day, date_obj.hour, date_obj.minute, date_obj.second)
+
+    # Stoppe das Tracking, bevor die Position berechnet wird
+    satellite_id = satellite_var.get()
+    if satellite_id in satellites:
+        satellites[satellite_id]["tracking"] = False
+
+    # Berechne die Position zu dem Zeitpunkt
+    track_satellite_position(satellite_id, skyfield_time)
+
+def track_satellite_position(satellite_id, timescale):
+    try:
+        # TLE-Daten lokal abrufen
+        satellites_api = load.tle_file('satellite_data.txt')  # Lade TLE-Daten aus der richtigen lokalen Datei
+        satellite = next((sat for sat in satellites_api if satellite_id in sat.name), None)
+
+        if not satellite:
+            raise ValueError(f"Satellit mit dem Namen {satellite_id} nicht gefunden!")
+
+        satellite_position = satellite.at(timescale)
+        subpoint = satellite_position.subpoint()
+        longitude = subpoint.longitude.degrees
+        latitude = subpoint.latitude.degrees
+
+        # Zeige die Position des Satelliten an
+        ax.plot(longitude, latitude, marker='o', color='red', markersize=8, transform=ccrs.Geodetic())
+        ax.text(longitude, latitude, f"{satellite_id} \n{timescale.utc_iso()}", fontsize=6, color='black', transform=ccrs.PlateCarree())
+        
+        fig.canvas.draw()
+    
+    except Exception as e:
+        print(f"Fehler beim Berechnen der Position des Satelliten {satellite_id} zu der gegebenen Zeit: {e}")
 
 # Fenster für die Buttons und das Dropdown-Menü erstellen
 root = tk.Tk()
@@ -254,9 +299,34 @@ start_button.pack(fill='both', expand=True)
 stop_button = tk.Button(root, text="Stop Tracking", command=stop_tracking)
 stop_button.pack(fill='both', expand=True)
 
-# Reset-Button für alle Satelliten
+# Reset-Button für ausgewählten Satellit
 reset_button_single = tk.Button(root, text="Reset This", command=reset_tracking_single)
 reset_button_single.pack(fill='both', expand=True)
+
+date_label = tk.Label(root, text="Datum auswählen:")
+date_label.pack(pady=5)
+
+date_entry = DateEntry(root, date_pattern='yyyy-mm-dd', width=12)
+date_entry.pack(pady=5)
+
+# Uhrzeit-Spinnboxen
+time_label = tk.Label(root, text="Zeit auswählen:")
+time_label.pack(pady=5)
+
+time_frame = tk.Frame(root)  # Ein Frame für die Uhrzeit-Spinboxen
+time_frame.pack(pady=5)
+
+hour_spinbox = ttk.Spinbox(time_frame, from_=0, to=23, width=5, format="%02.0f")
+hour_spinbox.set("00")  # Standardwert auf "00"
+hour_spinbox.pack(side="left", padx=5)
+
+minute_spinbox = ttk.Spinbox(time_frame, from_=0, to=59, width=5, format="%02.0f")
+minute_spinbox.set("00")  # Standardwert auf "00"
+minute_spinbox.pack(side="left", padx=5)
+
+
+calculate_button = tk.Button(root, text="Position zu diesem Zeitpunkt ausrechnen", command=calculate)
+calculate_button.pack(fill='both', expand = True)
 
 # Reset-Button für alle Satelliten
 reset_button_all = tk.Button(root, text="Reset All", command=reset_tracking_all)
