@@ -10,7 +10,7 @@ def get_list():
             lines = file.readlines()
     else:
         # URL for the TLE data (from the API)
-        url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"
+        url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
 
         # Make a request to get the TLE data
         response = requests.get(url)
