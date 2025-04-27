@@ -469,6 +469,8 @@ reset_button_all.pack(fill='both', expand=True)
 
 # Karte zeichnen
 fig = plt.figure(figsize=(12, 6))
+fig_manager = plt.get_current_fig_manager()
+fig_manager.set_window_title('Orbital Radar - Live Satelliten Tracking')
 ax = plt.axes(projection=ccrs.PlateCarree())
 ax.set_global()
 ax.add_feature(cfeature.LAND, facecolor='lightgray')
