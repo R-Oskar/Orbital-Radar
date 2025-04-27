@@ -9,14 +9,17 @@ import time
 from skyfield.api import load
 import get_list as g
 import tkinter.ttk as ttk  # Ergänzen für Combobox
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from tkcalendar import DateEntry
+from cartopy.feature.nightshade import Nightshade
+
 
 # Globale Variablen für mehrere Satelliten
 tracking = False
 satellites = {}  # Dictionary für verschiedene Satelliten
 prev_satellites = {}
 satellite_paths = {}
+nightshade_feature = None
 
 # Liste der verfügbaren Satelliten
 satellite_list = g.get_list()
@@ -363,6 +366,28 @@ def toggle_path():
     except Exception as e:
         print(f"Fehler beim Anzeigen/Löschen der Satellitenbahn: {e}")
 
+def update_nightshade():
+    global nightshade_feature
+
+    # Aktuelles Datum/Uhrzeit abrufen
+    now = datetime.now(timezone.utc)
+
+    # Vorherige Nightshade-Instanz entfernen, wenn vorhanden
+    if nightshade_feature:
+        try:
+            nightshade_feature.remove()
+        except Exception:
+            pass
+
+    # Neue Nightshade hinzufügen (UTC-Zeit verwenden)
+    nightshade_feature = Nightshade(now, alpha=0.3)  # alpha für Transparenz
+    ax.add_feature(nightshade_feature)
+
+    fig.canvas.draw_idle()
+
+    # Diese Funktion alle 60 Sekunden erneut aufrufen
+    root.after(60000, update_nightshade)
+
 # GUI
 
 # Fenster für die Buttons und das Dropdown-Menü erstellen
@@ -452,6 +477,9 @@ ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
 ax.add_feature(cfeature.BORDERS, linestyle=':', edgecolor='black')
 ax.gridlines(draw_labels=True)
 plt.title('Live-Tracking: Satelliten')
+
+# Initial Nightshade anzeigen
+update_nightshade()
 
 # Matplotlib plot in einem separaten Fenster starten
 def run_gui():

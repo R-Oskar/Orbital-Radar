@@ -27,6 +27,5 @@ def get_list():
         satellite_name = lines[i].strip()  # The name is on the 1st line of each 3-line TLE group
         satellite_names.append(satellite_name)
 
-    # Print the list of satellite names
     satellite_names.sort()
     return satellite_names
