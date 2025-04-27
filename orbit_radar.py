@@ -116,7 +116,6 @@ def start_tracking():
         t = ts.now()
         Thread(target=track_satellite, args=(satellite_id, t, True), daemon=True).start()
 
-
 # Stop-Button für einen Satelliten
 def stop_tracking():
     global prev_satellites
@@ -287,30 +286,6 @@ def calculate():
     except Exception as e:
         print(f"Fehler beim Berechnen der Position des Satelliten {satellite_id} zu der gegebenen Zeit: {e}")
 
-
-def track_satellite_position(satellite_id, timescale):
-    try:
-        # TLE-Daten lokal abrufen
-        satellites_api = load.tle_file('satellite_data.txt')  # Lade TLE-Daten aus der richtigen lokalen Datei
-        satellite = next((sat for sat in satellites_api if satellite_id in sat.name), None)
-
-        if not satellite:
-            raise ValueError(f"Satellit mit dem Namen {satellite_id} nicht gefunden!")
-
-        satellite_position = satellite.at(timescale)
-        subpoint = satellite_position.subpoint()
-        longitude = subpoint.longitude.degrees
-        latitude = subpoint.latitude.degrees
-
-        # Zeige die Position des Satelliten an
-        ax.plot(longitude, latitude, marker='o', color='red', markersize=8, transform=ccrs.Geodetic())
-        ax.text(longitude, latitude, f"{satellite_id} \n{timescale.utc_iso()}", fontsize=6, color='black', transform=ccrs.PlateCarree())
-        
-        fig.canvas.draw()
-    
-    except Exception as e:
-        print(f"Fehler beim Berechnen der Position des Satelliten {satellite_id} zu der gegebenen Zeit: {e}")
-
 # Fenster für die Buttons und das Dropdown-Menü erstellen
 root = tk.Tk()
 root.title("Satellite Tracker Control")
@@ -358,7 +333,6 @@ hour_spinbox.pack(side="left", padx=5)
 minute_spinbox = ttk.Spinbox(time_frame, from_=0, to=59, width=5, format="%02.0f")
 minute_spinbox.set("00")  # Standardwert auf "00"
 minute_spinbox.pack(side="left", padx=5)
-
 
 calculate_button = tk.Button(root, text="Position zu diesem Zeitpunkt ausrechnen", command=calculate)
 calculate_button.pack(fill='both', expand = True)
