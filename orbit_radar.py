@@ -6,16 +6,17 @@ import cartopy.feature as cfeature
 import requests
 import os
 import time
-from skyfield.api import Topos, load
+from skyfield.api import load
 import get_list as g
 import tkinter.ttk as ttk  # Ergänzen für Combobox
-from datetime import datetime
+from datetime import datetime, timedelta
 from tkcalendar import DateEntry
 
 # Globale Variablen für mehrere Satelliten
 tracking = False
 satellites = {}  # Dictionary für verschiedene Satelliten
 prev_satellites = {}
+satellite_paths = {}
 
 # Liste der verfügbaren Satelliten
 satellite_list = g.get_list()
@@ -154,8 +155,9 @@ def stop_tracking():
 
         fig.canvas.draw()
 
+# Reset-Button für aktuell ausgewählten Satelliten
 def reset_tracking_single():
-    global prev_satellites
+    global prev_satellites, satellites, satellite_paths
     satellite_id = satellite_var.get()
 
     # Aktive Grafikobjekte vom Satelliten entfernen
@@ -179,57 +181,88 @@ def reset_tracking_single():
     if satellite_id in prev_satellites:
         for satellite_data in prev_satellites[satellite_id]:
             try:
-                satellite_data["point"].remove()
+                if satellite_data["point"]:
+                    satellite_data["point"].remove()
             except Exception:
                 pass
             try:
-                satellite_data["path"].remove()
+                if satellite_data["path"]:
+                    satellite_data["path"].remove()
             except Exception:
                 pass
             try:
-                satellite_data["text"].remove()
+                if satellite_data["text"]:
+                    satellite_data["text"].remove()
             except Exception:
                 pass
 
         del prev_satellites[satellite_id]
 
+    # Pfad vom aktuellen Satelliten entfernen (falls vorhanden)
+    if satellite_id in satellite_paths:
+        try:
+            satellite_paths[satellite_id].remove()
+        except Exception:
+            pass
+        del satellite_paths[satellite_id]
+
     fig.canvas.draw()
 
 # Reset-Button für alle Satelliten
 def reset_tracking_all():
-    global satellites, prev_satellites
+    global satellites, prev_satellites, satellite_paths
+
     # Lösche alle Satelliten aus "satellites"
     for satellite_id, elements in satellites.items():
-        # Entferne die Graphenobjekte
-        elements["point"].remove()
-        elements["path"].remove()
-        elements["text"].remove()
+        try:
+            elements["point"].remove()
+        except Exception:
+            pass
+        try:
+            elements["path"].remove()
+        except Exception:
+            pass
+        try:
+            elements["text"].remove()
+        except Exception:
+            pass
 
-    # Setze die satellites Dictionary zurück
     satellites = {}
 
     # Lösche alle Satelliten aus "prev_satellites"
     for satellite_id, satellite_data_list in prev_satellites.items():
         for satellite_data in satellite_data_list:
             try:
-                satellite_data["point"].remove()
+                if satellite_data["point"]:
+                    satellite_data["point"].remove()
             except Exception:
                 pass
             try:
-                satellite_data["path"].remove()
+                if satellite_data["path"]:
+                    satellite_data["path"].remove()
             except Exception:
                 pass
             try:
-                satellite_data["text"].remove()
+                if satellite_data["text"]:
+                    satellite_data["text"].remove()
             except Exception:
                 pass
 
-    # Setze die prev_satellites Dictionary zurück
     prev_satellites = {}
 
-    # Zeichne das Bild neu, um alles zu leeren
+    # Lösche alle zusätzlichen gezeichneten Pfade aus "satellite_paths"
+    for satellite_id, path_line in satellite_paths.items():
+        try:
+            path_line.remove()
+        except Exception:
+            pass
+
+    satellite_paths = {}
+
+    # Zeichne die Figur neu
     fig.canvas.draw()
 
+# ausrechnen Button zur Anzeigung der Position des Planetens zu einem bestimmten Zeitpunkt
 def calculate():
     global prev_satellites, satellites
     # Datum und Uhrzeit auslesen
@@ -286,9 +319,55 @@ def calculate():
     except Exception as e:
         print(f"Fehler beim Berechnen der Position des Satelliten {satellite_id} zu der gegebenen Zeit: {e}")
 
+# Button um Satellitenpfad zu toggeln
+def toggle_path():
+    satellite_id = satellite_var.get()
+
+    try:
+        # Prüfen, ob der Pfad für diesen Satelliten schon existiert
+        if satellite_id in satellite_paths:
+            # Pfad existiert -> lösche ihn
+            try:
+                satellite_paths[satellite_id].remove()
+            except Exception:
+                pass  # Falls das Entfernen fehlschlägt, einfach ignorieren
+
+            del satellite_paths[satellite_id]
+            fig.canvas.draw()
+            return  # Nichts weiter tun
+
+        # Wenn kein Pfad existiert -> Bahn zeichnen
+        satellites_api = load.tle_file('satellite_data.txt')
+        satellite = next((sat for sat in satellites_api if satellite_id in sat.name), None)
+
+        if not satellite:
+            raise ValueError(f"Satellit mit dem Namen {satellite_id} nicht gefunden!")
+
+        ts = load.timescale()
+        t0 = ts.now()
+        t1 = ts.utc(t0.utc_datetime() + timedelta(minutes=90))  # 90 Minuten in die Zukunft
+        times = ts.linspace(t0, t1, 500)  # 500 Punkte für glatte Linie
+
+        geocentric_positions = satellite.at(times)
+        subpoints = geocentric_positions.subpoint()
+
+        longitudes = subpoints.longitude.degrees
+        latitudes = subpoints.latitude.degrees
+
+        # Bahn zeichnen und im Dictionary speichern
+        path_line = ax.plot(longitudes, latitudes, color='black', linewidth=1, transform=ccrs.Geodetic())[0]
+        satellite_paths[satellite_id] = path_line
+
+        fig.canvas.draw()
+
+    except Exception as e:
+        print(f"Fehler beim Anzeigen/Löschen der Satellitenbahn: {e}")
+
+# GUI
+
 # Fenster für die Buttons und das Dropdown-Menü erstellen
 root = tk.Tk()
-root.title("Satellite Tracker Control")
+root.title("Satelliten Tracker Kontrollfenster")
 root.attributes('-topmost', True)
 root.geometry("300x400")
 root.configure(bg='lightgray')
@@ -302,11 +381,11 @@ satellite_menu.pack(fill='both', expand=True)
 satellite_menu.current(0)  # Erstes Element vorauswählen
 
 # Start-Button
-start_button = tk.Button(root, text="Start Tracking", command=start_tracking)
+start_button = tk.Button(root, text="Starte Tracking", command=start_tracking)
 start_button.pack(fill='both', expand=True)
 
 # Stop-Button
-stop_button = tk.Button(root, text="Stop Tracking", command=stop_tracking)
+stop_button = tk.Button(root, text="Stoppe Tracking", command=stop_tracking)
 stop_button.pack(fill='both', expand=True)
 
 # Reset-Button für ausgewählten Satellit
@@ -336,6 +415,9 @@ minute_spinbox.pack(side="left", padx=5)
 
 calculate_button = tk.Button(root, text="Position zu diesem Zeitpunkt ausrechnen", command=calculate)
 calculate_button.pack(fill='both', expand = True)
+
+graph_button = tk.Button(root, text="Satellitenbahn toggeln", command = toggle_path)
+graph_button.pack(fill='both', expand = True)
 
 # Reset-Button für alle Satelliten
 reset_button_all = tk.Button(root, text="Reset All", command=reset_tracking_all)
