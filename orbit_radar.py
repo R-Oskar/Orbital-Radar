@@ -89,7 +89,6 @@ def track_satellite(satellite_id, timescale, update):
                 # Update satellite name position
                 satellites[satellite_id]["text"].set_position((longitude, latitude))
                 satellites[satellite_id]["text"].set_text(satellite_id)
-
                 fig.canvas.draw()
 
             except Exception as e:
@@ -345,7 +344,8 @@ def toggle_path():
 
         ts = load.timescale()
         t0 = ts.now()
-        t1 = ts.utc(t0.utc_datetime() + timedelta(minutes=90))  # 90 Minuten in die Zukunft
+        time = int(path_spinbox.get())
+        t1 = ts.utc(t0.utc_datetime() + timedelta(minutes=time))  # 90 Minuten in die Zukunft
         times = ts.linspace(t0, t1, 500)  # 500 Punkte für glatte Linie
 
         geocentric_positions = satellite.at(times)
@@ -416,7 +416,14 @@ minute_spinbox.pack(side="left", padx=5)
 calculate_button = tk.Button(root, text="Position zu diesem Zeitpunkt ausrechnen", command=calculate)
 calculate_button.pack(fill='both', expand = True)
 
-graph_button = tk.Button(root, text="Satellitenbahn toggeln", command = toggle_path)
+path_frame = tk.Frame(root)  # Ein Frame für die Uhrzeit-Spinboxen
+path_frame.pack(pady=5)
+
+path_spinbox = ttk.Spinbox(path_frame, from_=0, to=59, width=5, format="%02.0f")
+path_spinbox.set("60")  # Standardwert auf "00"
+path_spinbox.pack(side="left", padx=5)
+
+graph_button = tk.Button(path_frame, text="Satellitenbahn für nächste angegebene Minuten toggeln", command = toggle_path,font=("TkDefaultFont", 7))
 graph_button.pack(fill='both', expand = True)
 
 # Reset-Button für alle Satelliten
