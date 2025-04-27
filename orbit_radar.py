@@ -372,11 +372,23 @@ root.attributes('-topmost', True)
 root.geometry("300x400")
 root.configure(bg='lightgray')
 
-# Dropdown-Menü für Satelliten
-satellite_var = tk.StringVar(root)
-satellite_var.set(satellite_list[0])
+satellite_var = tk.StringVar()
 
-satellite_menu = ttk.Combobox(root, textvariable=satellite_var, values=satellite_list, state="readonly")
+# Funktion zum Filtern der Satelliten
+def filter_satellites(*args):
+    search_term = search_entry.get().lower()  # Suche nach kleingeschriebenem Text
+    filtered_list = [sat for sat in satellite_list if search_term in sat.lower()]
+    satellite_menu['values'] = filtered_list  # Filtere die Combobox
+    if filtered_list:
+        satellite_menu.current(0)  # Setze das erste Element als Standardauswahl
+
+# Textfeld zur Eingabe für die Suche
+search_entry = tk.Entry(root)
+search_entry.pack(fill='both', expand=True)
+search_entry.bind("<KeyRelease>", filter_satellites)  # Filtere bei jeder Eingabe
+
+# Dropdown-Menü für Satelliten
+satellite_menu = ttk.Combobox(root, textvariable=satellite_var, values=satellite_list, state="normal")
 satellite_menu.pack(fill='both', expand=True)
 satellite_menu.current(0)  # Erstes Element vorauswählen
 
