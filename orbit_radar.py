@@ -232,26 +232,61 @@ def reset_tracking_all():
     fig.canvas.draw()
 
 def calculate():
-    # Datum und Uhrzeit aus den Widgets auslesen
-    date = date_entry.get()  # Datum im Format 'yyyy-mm-dd'
-    hour = hour_spinbox.get()  # Stunde als String
-    minute = minute_spinbox.get()  # Minute als String
+    global prev_satellites, satellites
+    # Datum und Uhrzeit auslesen
+    date = date_entry.get()
+    hour = hour_spinbox.get()
+    minute = minute_spinbox.get()
     
-    # Das Datum in ein datetime-Objekt umwandeln
     date_str = f"{date} {hour}:{minute}:00"
     date_obj = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
     
-    # Skyfield Zeitformat umwandeln
     ts = load.timescale()
     skyfield_time = ts.utc(date_obj.year, date_obj.month, date_obj.day, date_obj.hour, date_obj.minute, date_obj.second)
 
-    # Stoppe das Tracking, bevor die Position berechnet wird
     satellite_id = satellite_var.get()
+
+    # Stop live tracking if necessary
     if satellite_id in satellites:
         satellites[satellite_id]["tracking"] = False
+        
+        # Save current tracking elements to prev_satellites
+        prev_satellites.setdefault(satellite_id, []).append({
+            "text": satellites[satellite_id]["text"],
+            "point": satellites[satellite_id]["point"],
+            "path": satellites[satellite_id]["path"],
+        })
 
-    # Berechne die Position zu dem Zeitpunkt
-    track_satellite_position(satellite_id, skyfield_time)
+    # Now calculate the static position regardless
+    try:
+        # TLE-Daten laden
+        satellites_api = load.tle_file('satellite_data.txt')
+        satellite = next((sat for sat in satellites_api if satellite_id in sat.name), None)
+
+        if not satellite:
+            raise ValueError(f"Satellit mit dem Namen {satellite_id} nicht gefunden!")
+
+        satellite_position = satellite.at(skyfield_time)
+        subpoint = satellite_position.subpoint()
+        longitude = subpoint.longitude.degrees
+        latitude = subpoint.latitude.degrees
+
+        # Plot new static point
+        point = ax.plot(longitude, latitude, marker='o', color='red', markersize=8, transform=ccrs.Geodetic())[0]
+        text = ax.text(longitude, latitude, f"{satellite_id} \n{skyfield_time.utc_iso()}", fontsize=6, color='black', transform=ccrs.PlateCarree())
+
+        # Add to prev_satellites
+        prev_satellites.setdefault(satellite_id, []).append({
+            "text": text,
+            "point": point,
+            "path": None,  # no path for single calculated point
+        })
+
+        fig.canvas.draw()
+
+    except Exception as e:
+        print(f"Fehler beim Berechnen der Position des Satelliten {satellite_id} zu der gegebenen Zeit: {e}")
+
 
 def track_satellite_position(satellite_id, timescale):
     try:
