@@ -426,7 +426,7 @@ stop_button = tk.Button(root, text="Stoppe Tracking", command=stop_tracking)
 stop_button.pack(fill='both', expand=True)
 
 # Reset-Button für ausgewählten Satellit
-reset_button_single = tk.Button(root, text="Reset This", command=reset_tracking_single)
+reset_button_single = tk.Button(root, text="Resete aktuellen Satelliten", command=reset_tracking_single)
 reset_button_single.pack(fill='both', expand=True)
 
 date_label = tk.Label(root, text="Datum auswählen:")
